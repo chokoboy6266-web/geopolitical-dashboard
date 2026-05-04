@@ -9,7 +9,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedSignalId, setSelectedSignalId] = useState<string | null>(null);
   const [voicesEnabled, setVoicesEnabled] = useState<boolean>(true);
-  const globeRef = useRef<any>();
+  const globeRef = useRef<any>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -93,7 +93,7 @@ const Dashboard: React.FC = () => {
 
       <SidePanel 
         signals={signals} 
-        selectedIsoCode={null} 
+        selectedIsoCode={selectedSignalId} 
         voicesEnabled={voicesEnabled}
         onToggleVoices={() => setVoicesEnabled(!voicesEnabled)}
         onClearSelection={() => {
