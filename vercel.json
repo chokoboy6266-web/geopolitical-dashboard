@@ -12,5 +12,9 @@
       "path": "/api/digest",
       "schedule": "0 15 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/poll.ts": { "maxDuration": 60 },
+    "api/digest.ts": { "maxDuration": 60 }
+  }
 }
