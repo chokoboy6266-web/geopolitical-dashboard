@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+  <defs>
+    <radialGradient id="iwiGround" cx="35%" cy="30%" r="80%">
+      <stop offset="0%" stop-color="#221a3d"/>
+      <stop offset="100%" stop-color="#0b0716"/>
+    </radialGradient>
+    <linearGradient id="iwiArc" x1="10%" y1="100%" x2="95%" y2="0%">
+      <stop offset="0%" stop-color="#FF8A3D"/>
+      <stop offset="55%" stop-color="#7C3FFF"/>
+      <stop offset="100%" stop-color="#35B8FF"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="120" cy="120" r="120" fill="url(#iwiGround)"/>
+
+  <g stroke="#9b7ff0" stroke-width="1.6" fill="none" opacity="0.55">
+    <circle cx="120" cy="120" r="82"/>
+    <ellipse cx="120" cy="120" rx="82" ry="30"/>
+    <ellipse cx="120" cy="120" rx="82" ry="55"/>
+    <line x1="38" y1="120" x2="202" y2="120"/>
+  </g>
+
+  <circle cx="150" cy="93" r="14" fill="none" stroke="#FF8A3D" stroke-width="1.4" opacity="0.45"/>
+  <circle cx="150" cy="93" r="6" fill="#FF8A3D"/>
+
+  <g fill="none" stroke-linecap="round">
+    <path d="M 141.8 70.45 A 24 24 0 0 1 172.55 101.2" stroke="url(#iwiArc)" stroke-width="3.2" opacity="0.95"/>
+    <path d="M 136.3 55.4 A 40 40 0 0 1 187.6 106.7" stroke="url(#iwiArc)" stroke-width="3.2" opacity="0.62"/>
+    <path d="M 130.2 38.5 A 58 58 0 0 1 204.5 112.8" stroke="url(#iwiArc)" stroke-width="3.2" opacity="0.32"/>
+  </g>
+</svg>
