@@ -114,7 +114,7 @@ export default async function handler(req: any, res: any) {
     trace.telegramGetMeOk = telRes.ok;
 
     trace.step = 'social_import_test';
-    const social = await import('./_lib/social');
+    const social = await import('./_lib/social.js');
     trace.socialFunctionsPresent = {
       postToBluesky: typeof social.postToBluesky === 'function',
       postToThreads: typeof social.postToThreads === 'function'
