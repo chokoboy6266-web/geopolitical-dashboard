@@ -6,7 +6,6 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GITHUB_TOKEN = process.env.Github;
 const CHANNEL_ID = '@IndiaWorldIntel';
 const REPO = 'chokoboy6266-web/geopolitical-dashboard';
-const STATE_FILE = 'api/last_posted.txt';
 const ARTICLES_FILE = 'api/articles.json';
 
 async function getAnalysis(title: string, source: string): Promise<{ telegramAnalysis: string; fullArticle: string }> {
@@ -72,44 +71,6 @@ Continuous monitoring is necessary.
     console.error("Gemini Error:", e);
     return { telegramAnalysis: fallbackTelegram, fullArticle: fallbackArticle };
   }
-}
-
-async function getStoredState() {
-  if (!GITHUB_TOKEN) return '';
-  try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${STATE_FILE}`, {
-      headers: { Authorization: `token ${GITHUB_TOKEN}` }
-    });
-    if (!res.ok) return '';
-    const data = await res.json();
-    return Buffer.from(data.content, 'base64').toString().trim();
-  } catch { return ''; }
-}
-
-async function updateStoredState(title: string) {
-  if (!GITHUB_TOKEN) return;
-  try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${STATE_FILE}`, {
-      headers: { Authorization: `token ${GITHUB_TOKEN}` }
-    });
-    let sha = '';
-    if (res.ok) {
-      const data = await res.json();
-      sha = data.sha;
-    }
-    await fetch(`https://api.github.com/repos/${REPO}/contents/${STATE_FILE}`, {
-      method: 'PUT',
-      headers: { 
-        Authorization: `token ${GITHUB_TOKEN}`,
-        'Content-Type': 'application/json' 
-      },
-      body: JSON.stringify({
-        message: 'Update intelligence state [skip ci]',
-        content: Buffer.from(title).toString('base64'),
-        sha: sha
-      })
-    });
-  } catch (e) { console.error('State Update Failed:', e); }
 }
 
 async function getStoredArticles() {
@@ -186,9 +147,10 @@ export default async function handler(req: any, res: any) {
 
     if (newsItems.length === 0) return res.status(200).json({ status: 'no valid news' });
 
-    // Persistent Deduplication
-    const lastPosted = await getStoredState();
-    const selectedNews = newsItems.find(item => item.title !== lastPosted) || (req.query.force ? newsItems[0] : null);
+    // Persistent Deduplication - skip anything already posted in recent history, not just the last one
+    const currentArticles = await getStoredArticles();
+    const postedTitles = new Set(currentArticles.map((a: any) => a.title));
+    const selectedNews = newsItems.find(item => !postedTitles.has(item.title)) || (req.query.force ? newsItems[0] : null);
 
     if (!selectedNews) {
       return res.status(200).json({ status: 'skipped', reason: 'Already posted latest news' });
@@ -196,12 +158,11 @@ export default async function handler(req: any, res: any) {
 
     // Dynamic Analysis (Concise & Full Article)
     const { telegramAnalysis, fullArticle } = await getAnalysis(selectedNews.title, selectedNews.source);
-    
+
     // Unique ID for the article
     const articleId = 'art_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
 
     // Save article to GitHub database
-    const currentArticles = await getStoredArticles();
     const newArticle = {
       id: articleId,
       title: selectedNews.title,
@@ -274,9 +235,6 @@ ${analysis}
       postToBluesky(socialPitch),
       postToThreads(socialPitch)
     ]);
-
-    // Update Persistent State
-    await updateStoredState(selectedNews.title);
 
     return res.status(200).json({ status: 'success', news: selectedNews.title, articleId });
 
