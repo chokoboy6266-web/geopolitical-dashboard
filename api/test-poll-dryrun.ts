@@ -74,6 +74,52 @@ export default async function handler(req: any, res: any) {
       trace.parsedOk = !!(parsed.telegramAnalysis && parsed.fullArticle);
     }
 
+    trace.step = 'github_write_test';
+    const writePath = 'api/_diagnostic_test.txt';
+    const getRes = await fetch(`https://api.github.com/repos/${REPO}/contents/${writePath}`, {
+      headers: { Authorization: `token ${GITHUB_TOKEN}` }
+    });
+    let sha;
+    if (getRes.ok) sha = (await getRes.json()).sha;
+    const putRes = await fetch(`https://api.github.com/repos/${REPO}/contents/${writePath}`, {
+      method: 'PUT',
+      headers: { Authorization: `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'diagnostic test write [skip ci]',
+        content: Buffer.from('diagnostic').toString('base64'),
+        sha
+      })
+    });
+    trace.githubWriteStatus = putRes.status;
+    const putData = await putRes.json();
+    trace.githubWriteOk = putRes.ok;
+    if (!putRes.ok) trace.githubWriteError = putData;
+
+    if (putRes.ok) {
+      trace.step = 'github_cleanup';
+      const newSha = putData.content.sha;
+      const delRes = await fetch(`https://api.github.com/repos/${REPO}/contents/${writePath}`, {
+        method: 'DELETE',
+        headers: { Authorization: `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'diagnostic cleanup [skip ci]', sha: newSha })
+      });
+      trace.githubCleanupStatus = delRes.status;
+    }
+
+    trace.step = 'telegram_test';
+    const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+    const CHANNEL_ID = '@IndiaWorldIntel';
+    const telRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getMe`, { method: 'GET' });
+    trace.telegramGetMeStatus = telRes.status;
+    trace.telegramGetMeOk = telRes.ok;
+
+    trace.step = 'social_import_test';
+    const social = await import('./_lib/social');
+    trace.socialFunctionsPresent = {
+      postToBluesky: typeof social.postToBluesky === 'function',
+      postToThreads: typeof social.postToThreads === 'function'
+    };
+
     trace.step = 'done';
     return res.status(200).json(trace);
   } catch (error: any) {
