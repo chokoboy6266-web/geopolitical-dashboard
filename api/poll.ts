@@ -2,7 +2,7 @@
 import { postToBluesky, postToThreads } from './_lib/social';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GROQ_API_KEY = process.env.GROK_API_KEY; // Groq (fast inference), not xAI's Grok
 const GITHUB_TOKEN = process.env.Github;
 const CHANNEL_ID = '@IndiaWorldIntel';
 const REPO = 'chokoboy6266-web/geopolitical-dashboard';
@@ -24,7 +24,7 @@ Trade route stability and energy security must be prioritized.
 Continuous monitoring is necessary.
   `.trim();
 
-  if (!GEMINI_API_KEY) {
+  if (!GROQ_API_KEY) {
     return { telegramAnalysis: fallbackTelegram, fullArticle: fallbackArticle };
   }
 
@@ -44,19 +44,18 @@ Continuous monitoring is necessary.
   `.trim();
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_API_KEY}`;
+    const url = 'https://api.groq.com/openai/v1/chat/completions';
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_API_KEY}` },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' }
       })
     });
     const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = data.choices?.[0]?.message?.content;
     if (text) {
       const parsed = JSON.parse(text);
       if (parsed.telegramAnalysis && parsed.fullArticle) {
@@ -68,7 +67,7 @@ Continuous monitoring is necessary.
     }
     return { telegramAnalysis: fallbackTelegram, fullArticle: fallbackArticle };
   } catch (e) {
-    console.error("Gemini Error:", e);
+    console.error("Groq Error:", e);
     return { telegramAnalysis: fallbackTelegram, fullArticle: fallbackArticle };
   }
 }

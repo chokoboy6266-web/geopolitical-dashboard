@@ -2,7 +2,7 @@
 import { postToBluesky, postToThreads } from './_lib/social';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GROQ_API_KEY = process.env.GROK_API_KEY; // Groq (fast inference), not xAI's Grok
 const CHANNEL_ID = '@IndiaWorldIntel';
 
 function escapeHTML(str: string) {
@@ -21,7 +21,7 @@ ${newsItems.slice(0, 10).map((item, index) => `${index + 1}. <b>${escapeHTML(ite
 📡 <b>Official Feed:</b> @IndiaWorldIntel
   `.trim();
 
-  if (!GEMINI_API_KEY) {
+  if (!GROQ_API_KEY) {
     return fallbackText;
   }
 
@@ -50,18 +50,19 @@ ${newsItems.slice(0, 10).map((item, index) => `${index + 1}. <b>${escapeHTML(ite
   `.trim();
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_API_KEY}`;
+    const url = 'https://api.groq.com/openai/v1/chat/completions';
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_API_KEY}` },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }]
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }]
       })
     });
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || fallbackText;
+    return data.choices?.[0]?.message?.content || fallbackText;
   } catch (e) {
-    console.error("Digest Gemini Error:", e);
+    console.error("Digest Groq Error:", e);
     return fallbackText;
   }
 }
