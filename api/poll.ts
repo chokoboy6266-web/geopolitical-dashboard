@@ -1,11 +1,12 @@
 // @ts-nocheck
 import { postToBluesky, postToThreads } from './_lib/social.js';
+import { fetchNewsItems } from './_lib/news.js';
+import { getJsonFile, updateJsonFile } from './_lib/github-store.js';
+import { getHashtags } from './_lib/hashtags.js';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GROQ_API_KEY = process.env.GROK_API_KEY; // Groq (fast inference), not xAI's Grok
-const GITHUB_TOKEN = process.env.Github;
 const CHANNEL_ID = '@IndiaWorldIntel';
-const REPO = 'chokoboy6266-web/geopolitical-dashboard';
 const ARTICLES_FILE = 'api/articles.json';
 
 async function getAnalysis(title: string, source: string): Promise<{ telegramAnalysis: string; fullArticle: string }> {
@@ -72,49 +73,6 @@ Continuous monitoring is necessary.
   }
 }
 
-async function getStoredArticles() {
-  if (!GITHUB_TOKEN) return [];
-  try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${ARTICLES_FILE}`, {
-      headers: { Authorization: `token ${GITHUB_TOKEN}` }
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const content = Buffer.from(data.content, 'base64').toString().trim();
-    return JSON.parse(content || '[]');
-  } catch (e) { 
-    console.error('Failed to get articles:', e);
-    return []; 
-  }
-}
-
-async function updateStoredArticles(articles: any[]) {
-  if (!GITHUB_TOKEN) return;
-  try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${ARTICLES_FILE}`, {
-      headers: { Authorization: `token ${GITHUB_TOKEN}` }
-    });
-    let sha = '';
-    if (res.ok) {
-      const data = await res.json();
-      sha = data.sha;
-    }
-    const content = JSON.stringify(articles, null, 2);
-    await fetch(`https://api.github.com/repos/${REPO}/contents/${ARTICLES_FILE}`, {
-      method: 'PUT',
-      headers: { 
-        Authorization: `token ${GITHUB_TOKEN}`,
-        'Content-Type': 'application/json' 
-      },
-      body: JSON.stringify({
-        message: 'Update intelligence articles database [skip ci]',
-        content: Buffer.from(content).toString('base64'),
-        sha: sha
-      })
-    });
-  } catch (e) { console.error('Articles Update Failed:', e); }
-}
-
 async function shortenUrl(longUrl: string): Promise<string> {
   try {
     const res = await fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(longUrl));
@@ -138,30 +96,11 @@ function escapeHTML(str: string) {
 
 export default async function handler(req: any, res: any) {
   try {
-    const rssUrl = 'https://news.google.com/rss/search?q=geopolitics+india+conflict&hl=en-IN&gl=IN&ceid=IN:en';
-    const response = await fetch(rssUrl);
-    const xml = await response.text();
-
-    const items = xml.split('<item>');
-    if (items.length < 2) return res.status(200).json({ status: 'no news' });
-
-    // Extract potential news
-    const newsItems = items.slice(1, 10).map(item => {
-      const titleMatch = item.match(/<title[^>]*>(.*?)<\/title>/i);
-      const linkMatch = item.match(/<link[^>]*>(.*?)<\/link>/i);
-      const sourceMatch = item.match(/<source[^>]*url=["'](.*?)["'][^>]*>(.*?)<\/source>/i);
-      
-      const title = (titleMatch ? titleMatch[1] : '').replace(/&amp;/g, '&').trim();
-      const articleLink = (linkMatch ? linkMatch[1] : '').trim();
-      const sourceName = (sourceMatch ? sourceMatch[2] : (item.match(/<source[^>]*>(.*?)<\/source>/i)?.[1] || 'Global Source')).split('<')[0].trim();
-
-      return { title, link: articleLink, source: sourceName };
-    }).filter(item => item.title && item.link);
-
+    const newsItems = await fetchNewsItems();
     if (newsItems.length === 0) return res.status(200).json({ status: 'no valid news' });
 
     // Persistent Deduplication - skip anything already posted in recent history, not just the last one
-    const currentArticles = await getStoredArticles();
+    const currentArticles = await getJsonFile(ARTICLES_FILE);
     const postedTitles = new Set(currentArticles.map((a: any) => a.title));
     const selectedNews = newsItems.find(item => !postedTitles.has(item.title)) || (req.query.force ? newsItems[0] : null);
 
@@ -189,7 +128,7 @@ export default async function handler(req: any, res: any) {
     if (currentArticles.length > 50) {
       currentArticles.pop();
     }
-    await updateStoredArticles(currentArticles);
+    await updateJsonFile(ARTICLES_FILE, currentArticles, 'Update intelligence articles database [skip ci]');
     
     // Safely format for HTML mode
     const title = escapeHTML(selectedNews.title);
@@ -246,8 +185,9 @@ ${analysis}
     const articleImage = getRepresentationalImage(selectedNews.title);
     const shortArticleLink = await shortenUrl(selectedNews.link);
 
-    const twoLinkPitch = `🚨 ${selectedNews.title}\n\n📰 Article: ${shortArticleLink}\n🌐 Dashboard: ${webArticleLink}`;
-    const socialPitch = twoLinkPitch.length <= 300 ? twoLinkPitch : `🚨 ${selectedNews.title}\n\n${webArticleLink}`;
+    const hashtags = getHashtags(selectedNews.title);
+    const twoLinkPitch = `🚨 ${selectedNews.title}\n\n📰 Article: ${shortArticleLink}\n🌐 Dashboard: ${webArticleLink}\n\n${hashtags}`;
+    const socialPitch = twoLinkPitch.length <= 300 ? twoLinkPitch : `🚨 ${selectedNews.title}\n\n${webArticleLink}\n\n${hashtags}`;
     await Promise.allSettled([
       postToBluesky(socialPitch, {
         url: webArticleLink,

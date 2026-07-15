@@ -7,16 +7,19 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "verify": "tsc --noEmit -p api/tsconfig.json"
   },
   "dependencies": {
     "@types/react-simple-maps": "^3.0.6",
+    "@vercel/analytics": "^2.0.1",
     "prop-types": "^15.8.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-globe.gl": "^2.37.1",
     "react-simple-maps": "^3.0.0",
-    "three": "^0.184.0"
+    "three": "^0.184.0",
+    "twitter-api-v2": "^1.19.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

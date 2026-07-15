@@ -1,5 +1,7 @@
 // @ts-nocheck
 import { postToBluesky, postToThreads } from './_lib/social.js';
+import { fetchNewsItems } from './_lib/news.js';
+import { getHashtags } from './_lib/hashtags.js';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GROQ_API_KEY = process.env.GROK_API_KEY; // Groq (fast inference), not xAI's Grok
@@ -74,27 +76,7 @@ export default async function handler(req: any, res: any) {
     // 0-11 UTC is morning/early afternoon in India, 12-23 UTC is evening/night
     const type = (currentHour < 12) ? 'Morning' : 'Evening';
 
-    const rssUrl = 'https://news.google.com/rss/search?q=geopolitics+india+conflict&hl=en-IN&gl=IN&ceid=IN:en';
-    const response = await fetch(rssUrl);
-    const xml = await response.text();
-
-    const items = xml.split('<item>');
-    if (items.length < 2) return res.status(200).json({ status: 'no news' });
-
-    // Extract news
-    const newsItems = items.slice(1, 15).map(item => {
-      const titleMatch = item.match(/<title[^>]*>(.*?)<\/title>/i);
-      const linkMatch = item.match(/<link[^>]*>(.*?)<\/link>/i);
-      const sourceMatch = item.match(/<source[^>]*url=["'](.*?)["'][^>]*>(.*?)<\/source>/i);
-      
-      const title = (titleMatch ? titleMatch[1] : '').replace(/&amp;/g, '&').trim();
-      const link = (linkMatch ? linkMatch[1] : '').trim();
-      const sourceName = (sourceMatch ? sourceMatch[2] : (item.match(/<source[^>]*>(.*?)<\/source>/i)?.[1] || 'Global Source')).split('<')[0].trim();
-      const directUrl = sourceMatch ? sourceMatch[1].trim() : link;
-      
-      return { title, link: directUrl, source: sourceName };
-    }).filter(item => item.title && item.link);
-
+    const newsItems = await fetchNewsItems();
     if (newsItems.length === 0) return res.status(200).json({ status: 'no valid news' });
 
     // Compile the digest using Gemini
@@ -115,7 +97,8 @@ export default async function handler(req: any, res: any) {
     const telData = await telResponse.json();
 
     const digestLink = 'https://t.me/IndiaWorldIntel';
-    const socialPitch = `📢 ${type} Geopolitical Intelligence Digest is live — top developments in India & global strategy.\n\nFull briefing: ${digestLink}`;
+    const hashtags = getHashtags(newsItems.slice(0, 3).map(i => i.title).join(' '));
+    const socialPitch = `📢 ${type} Geopolitical Intelligence Digest is live — top developments in India & global strategy.\n\nFull briefing: ${digestLink}\n\n${hashtags}`;
     await Promise.allSettled([
       postToBluesky(socialPitch, {
         url: digestLink,

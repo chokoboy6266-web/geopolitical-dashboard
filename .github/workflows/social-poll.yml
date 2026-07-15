@@ -1,0 +1,13 @@
+name: Scheduled Social Poll
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger poll endpoint
+        run: curl -sf https://geopolitical-dashboard-steel.vercel.app/api/poll

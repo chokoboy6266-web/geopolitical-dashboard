@@ -1,0 +1,13 @@
+name: Scheduled Social Bulletin
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  bulletin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger bulletin endpoint
+        run: curl -sf https://geopolitical-dashboard-steel.vercel.app/api/bulletin
