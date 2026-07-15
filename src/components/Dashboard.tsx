@@ -64,6 +64,17 @@ const Dashboard: React.FC = () => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    // Center the globe on the news itself once it loads, instead of the default Atlantic-facing view.
+    if (!loading && signals.length > 0 && globeRef.current) {
+      globeRef.current.pointOfView({
+        lat: signals[0].context.coordinates.lat,
+        lng: signals[0].context.coordinates.lng,
+        altitude: 1.8
+      }, 1000);
+    }
+  }, [loading]);
+
   const handleSelectArticle = (id: string | null) => {
     setSelectedArticleId(id);
     if (id) {
