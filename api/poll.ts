@@ -231,7 +231,11 @@ ${analysis}
 
     const socialPitch = `🚨 ${selectedNews.title}\n\n${webArticleLink}`;
     await Promise.allSettled([
-      postToBluesky(socialPitch),
+      postToBluesky(socialPitch, {
+        url: webArticleLink,
+        title: selectedNews.title,
+        description: `Strategic analysis via India World Intel — ${source}`
+      }),
       postToThreads(socialPitch)
     ]);
 

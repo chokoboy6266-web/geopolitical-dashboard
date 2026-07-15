@@ -114,9 +114,14 @@ export default async function handler(req: any, res: any) {
 
     const telData = await telResponse.json();
 
-    const socialPitch = `📢 ${type} Geopolitical Intelligence Digest is live — top developments in India & global strategy.\n\nFull briefing: https://t.me/IndiaWorldIntel`;
+    const digestLink = 'https://t.me/IndiaWorldIntel';
+    const socialPitch = `📢 ${type} Geopolitical Intelligence Digest is live — top developments in India & global strategy.\n\nFull briefing: ${digestLink}`;
     await Promise.allSettled([
-      postToBluesky(socialPitch),
+      postToBluesky(socialPitch, {
+        url: digestLink,
+        title: `${type} Geopolitical Intelligence Digest`,
+        description: 'Top India & global strategic developments, live now.'
+      }),
       postToThreads(socialPitch)
     ]);
 
