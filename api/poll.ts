@@ -125,15 +125,9 @@ async function shortenUrl(longUrl: string): Promise<string> {
   }
 }
 
-async function getArticleImage(articleUrl: string): Promise<string | null> {
-  try {
-    const res = await fetch(articleUrl);
-    const html = await res.text();
-    const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
-    return match ? match[1] : null;
-  } catch (e) {
-    return null;
-  }
+function getRepresentationalImage(title: string): string {
+  const prompt = encodeURIComponent(`${title}, geopolitics news illustration, professional editorial style`);
+  return `https://image.pollinations.ai/prompt/${prompt}?width=1200&height=630&nologo=true`;
 }
 
 function escapeHTML(str: string) {
@@ -249,7 +243,7 @@ ${analysis}
       }),
     });
 
-    const articleImage = await getArticleImage(selectedNews.link);
+    const articleImage = getRepresentationalImage(selectedNews.title);
     const shortArticleLink = await shortenUrl(selectedNews.link);
 
     const twoLinkPitch = `🚨 ${selectedNews.title}\n\n📰 Article: ${shortArticleLink}\n🌐 Dashboard: ${webArticleLink}`;
