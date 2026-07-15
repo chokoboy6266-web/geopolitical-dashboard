@@ -250,7 +250,7 @@ const ArticlesView: React.FC<ArticlesViewProps> = ({ selectedArticleId, onSelect
                 </div>
                 <div>
                   <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#eee' }}>Shivam Punjabi</div>
-                  <div style={{ fontSize: '0.75rem', color: '#666' }}>Realist Perspective • Source: {currentArticle.source}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#666' }}>Creator</div>
                 </div>
               </div>
 

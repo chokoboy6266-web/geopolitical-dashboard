@@ -1,10 +1,49 @@
 // @ts-nocheck
-export const RSS_TOPICS = [
-  'geopolitics india conflict',
-  'india defense strategic security',
-  'china pakistan border india',
-  'global trade energy security india'
+const ALLOWED_SOURCE_SITES = [
+  'reuters.com',
+  'firstpost.com',
+  'indiatoday.in',
+  'theguardian.com',
+  'bbc.com',
+  'bbc.co.uk',
+  'israelhayom.co.il',
+  'israelhayom.com',
+  'timesofindia.indiatimes.com'
 ];
+
+const ALLOWED_SOURCE_NAMES = [
+  'reuters',
+  'firstpost',
+  'india today',
+  'guardian',
+  'bbc',
+  'israel hayom',
+  'times of india'
+];
+
+const SITE_FILTER = ALLOWED_SOURCE_SITES.map(site => `site:${site}`).join(' OR ');
+
+export const RSS_TOPICS = [
+  `geopolitics india conflict (${SITE_FILTER})`,
+  `india defense strategic security (${SITE_FILTER})`,
+  `china pakistan border india (${SITE_FILTER})`,
+  `global trade energy security india (${SITE_FILTER})`
+];
+
+function isAllowedSource(sourceName: string): boolean {
+  const lower = sourceName.toLowerCase();
+  return ALLOWED_SOURCE_NAMES.some(name => lower.includes(name));
+}
+
+const HUB_PAGE_PATTERNS = [
+  /latest (top )?(stories|news)/i,
+  /news (&|and) updates/i,
+  /^(world|india|china|business|sport|technology) news\b/i
+];
+
+function isRealArticle(title: string): boolean {
+  return !HUB_PAGE_PATTERNS.some(pattern => pattern.test(title));
+}
 
 function parseRssItems(xml: string, limit: number) {
   const items = xml.split('<item>');
@@ -17,10 +56,10 @@ function parseRssItems(xml: string, limit: number) {
     const title = (titleMatch ? titleMatch[1] : '').replace(/&amp;/g, '&').trim();
     const linkMatchUrl = (linkMatch ? linkMatch[1] : '').trim();
     const sourceName = (sourceMatch ? sourceMatch[2] : (item.match(/<source[^>]*>(.*?)<\/source>/i)?.[1] || 'Global Source')).split('<')[0].trim();
-    const directUrl = sourceMatch ? sourceMatch[1].trim() : linkMatchUrl;
 
-    return { title, link: directUrl, source: sourceName };
-  }).filter(item => item.title && item.link);
+    // Note: <source url="..."> is the publisher's homepage, not the article - always use <link> for the actual story.
+    return { title, link: linkMatchUrl, source: sourceName };
+  }).filter(item => item.title && item.link && isAllowedSource(item.source) && isRealArticle(item.title));
 }
 
 export async function fetchNewsItems(limitPerTopic = 10): Promise<{ title: string; link: string; source: string }[]> {
