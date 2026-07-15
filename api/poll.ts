@@ -115,6 +115,16 @@ async function updateStoredArticles(articles: any[]) {
   } catch (e) { console.error('Articles Update Failed:', e); }
 }
 
+async function shortenUrl(longUrl: string): Promise<string> {
+  try {
+    const res = await fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(longUrl));
+    const text = (await res.text()).trim();
+    return res.ok && text.startsWith('http') ? text : longUrl;
+  } catch (e) {
+    return longUrl;
+  }
+}
+
 async function getArticleImage(articleUrl: string): Promise<string | null> {
   try {
     const res = await fetch(articleUrl);
@@ -240,8 +250,9 @@ ${analysis}
     });
 
     const articleImage = await getArticleImage(selectedNews.link);
+    const shortArticleLink = await shortenUrl(selectedNews.link);
 
-    const twoLinkPitch = `🚨 ${selectedNews.title}\n\n📰 Article: ${selectedNews.link}\n🌐 Dashboard: ${webArticleLink}`;
+    const twoLinkPitch = `🚨 ${selectedNews.title}\n\n📰 Article: ${shortArticleLink}\n🌐 Dashboard: ${webArticleLink}`;
     const socialPitch = twoLinkPitch.length <= 300 ? twoLinkPitch : `🚨 ${selectedNews.title}\n\n${webArticleLink}`;
     await Promise.allSettled([
       postToBluesky(socialPitch, {
