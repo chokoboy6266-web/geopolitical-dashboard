@@ -1,6 +1,34 @@
 import React, { useState } from "react";
 import type { Signal } from "../services/aiService";
 
+const CATEGORY_COLORS: Record<string, string> = {
+  security: '#f03e3e',
+  energy: '#fab005',
+  technology: '#15aabf',
+  diplomacy: '#40c057'
+};
+
+const CATEGORY_BG_COLORS: Record<string, string> = {
+  security: 'rgba(240, 62, 62, 0.08)',
+  energy: 'rgba(250, 176, 5, 0.08)',
+  technology: 'rgba(21, 170, 191, 0.08)',
+  diplomacy: 'rgba(64, 192, 87, 0.08)'
+};
+
+const CATEGORY_BORDER_COLORS: Record<string, string> = {
+  security: 'rgba(240, 62, 62, 0.15)',
+  energy: 'rgba(250, 176, 5, 0.15)',
+  technology: 'rgba(21, 170, 191, 0.15)',
+  diplomacy: 'rgba(64, 192, 87, 0.15)'
+};
+
+const CATEGORY_BADGES: Record<string, string> = {
+  security: '🛡️ SECURITY',
+  energy: '⚡ ENERGY',
+  technology: '💻 TECH',
+  diplomacy: '🕊️ DIPLOMACY'
+};
+
 interface SignalCardProps {
   signal: Signal;
   voicesEnabled: boolean;
@@ -23,15 +51,17 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, voicesEnabled }) => {
     }}>
       {/* What Changed Highlight */}
       <div style={{ 
-        background: 'rgba(0, 150, 255, 0.08)', 
+        background: CATEGORY_BG_COLORS[signal.category] || 'rgba(0, 150, 255, 0.08)', 
         padding: '0.6rem 1rem', 
         fontSize: '0.75rem', 
-        color: '#4dabf7', 
-        borderBottom: '1px solid rgba(0, 150, 255, 0.1)',
-        fontWeight: '500',
+        color: CATEGORY_COLORS[signal.category] || '#4dabf7', 
+        borderBottom: `1px solid ${CATEGORY_BORDER_COLORS[signal.category] || 'rgba(0, 150, 255, 0.1)'}`,
+        fontWeight: '700',
         display: 'flex',
         alignItems: 'center',
-        gap: '0.5rem'
+        gap: '0.5rem',
+        letterSpacing: '0.02em',
+        textTransform: 'uppercase'
       }}>
         <span style={{ opacity: 0.8 }}>⚡</span> {signal.intelligence.whatChanged}
       </div>
@@ -39,9 +69,22 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, voicesEnabled }) => {
       <div style={{ padding: '1.25rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
           <h3 style={{ fontSize: '1.1rem', fontWeight: '600', lineHeight: '1.4', flex: 1, marginRight: '1rem', color: '#fff' }}>{signal.summary}</h3>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <div style={{ background: 'rgba(255, 69, 69, 0.15)', color: '#ff4545', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.7rem', fontWeight: '800', letterSpacing: '0.05em' }}>
+          <div style={{ display: 'flex', gap: '0.4rem', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
+            <div style={{ background: 'rgba(255, 69, 69, 0.15)', color: '#ff4545', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.7rem', fontWeight: '800', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
               RISK {signal.riskScore}
+            </div>
+            <div style={{ 
+              background: CATEGORY_BG_COLORS[signal.category] || 'rgba(255,255,255,0.05)', 
+              color: CATEGORY_COLORS[signal.category] || '#aaa', 
+              padding: '0.25rem 0.5rem', 
+              borderRadius: '6px', 
+              fontSize: '0.65rem', 
+              fontWeight: '700', 
+              letterSpacing: '0.02em',
+              border: `1px solid ${CATEGORY_BORDER_COLORS[signal.category] || 'transparent'}`,
+              whiteSpace: 'nowrap'
+            }}>
+              {CATEGORY_BADGES[signal.category] || signal.category.toUpperCase()}
             </div>
           </div>
         </div>
@@ -93,16 +136,25 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, voicesEnabled }) => {
           </button>
         </div>
 
-        {/* X Post Button (Concise for Non-Premium) */}
-        <div style={{ marginBottom: '1.25rem' }}>
-          <button 
-            onClick={() => {
-              const tweetText = `${signal.summary}\n\nTakeaway: ${signal.voices.keyTakeaway}\n\n#GeoStrat #Antigravity`;
-              const encodedText = encodeURIComponent(tweetText.substring(0, 270)); // Safely under 280
-              window.open(`https://twitter.com/intent/tweet?text=${encodedText}`, '_blank');
-            }}
+        {/* X Post Button (Enhanced Hook Engine) */}
+        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
+          <a 
+            href={`https://x.com/intent/tweet?text=${(() => {
+              const hook = signal.riskScore >= 8 ? "🔴 CRITICAL ALERT:" : signal.riskScore >= 6 ? "🔍 STRATEGIC BRIEF:" : "📡 INTEL UPDATE:";
+              const summary = signal.summary;
+              const insight = signal.voices.keyTakeaway.split('.')[0] + ".";
+              const url = signal.sourceUrl ? `\n\nFull Report: ${signal.sourceUrl}` : "";
+              const question = `\n\nWhat's your take on this shift? 👇`;
+              const tags = `\n\n#Geopolitics #${signal.context.region.replace(/\s+/g, '')}`;
+              
+              // Build the post and ensure it's punchy
+              const fullPost = `${hook}\n${summary}\n\n💡 ${insight}${url}${question}${tags}`;
+              return encodeURIComponent(fullPost);
+            })()}`}
+            target="_blank" 
+            rel="noopener noreferrer"
             style={{ 
-              width: '100%', 
+              flex: 1,
               background: '#fff', 
               color: '#000', 
               border: 'none', 
@@ -115,13 +167,43 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, voicesEnabled }) => {
               alignItems: 'center', 
               justifyContent: 'center', 
               gap: '0.5rem',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              textDecoration: 'none'
             }}
             onMouseOver={(e) => e.currentTarget.style.background = '#eee'}
             onMouseOut={(e) => e.currentTarget.style.background = '#fff'}
           >
             <i className="fab fa-x-twitter" style={{ fontSize: '0.9rem' }}></i> Post to X
-          </button>
+          </a>
+
+          {signal.sourceUrl && (
+            <a 
+              href={signal.sourceUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              style={{ 
+                flex: 1,
+                background: 'rgba(255,255,255,0.05)', 
+                color: '#aaa', 
+                border: '1px solid rgba(255,255,255,0.1)', 
+                padding: '0.6rem', 
+                borderRadius: '8px', 
+                fontSize: '0.75rem', 
+                fontWeight: '600', 
+                cursor: 'pointer', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: '0.5rem',
+                transition: 'all 0.2s',
+                textDecoration: 'none'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+            >
+              📄 Read Full Report
+            </a>
+          )}
         </div>
 
         {showContext && (

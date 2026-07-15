@@ -42,6 +42,14 @@ export interface VoicesLayer {
   externalCommentary: ExternalCommentary[];
 }
 
+export type ThreatCategory = 'security' | 'energy' | 'technology' | 'diplomacy';
+
+export interface ArcConnection {
+  targetCountry: string;
+  targetCoords: { lat: number; lng: number };
+  type: 'tension' | 'alliance' | 'trade' | 'tech';
+}
+
 export interface Signal {
   id: string;
   summary: string;
@@ -50,311 +58,326 @@ export interface Signal {
   whatToWatch: string;
   isNoise: boolean;
   imageUrl?: string;
+  sourceUrl?: string;
   context: ContextLayer;
   xContent: XContent;
   intelligence: IntelligenceLayer;
   voices: VoicesLayer;
+  category: ThreatCategory;
+  connections: ArcConnection[];
 }
 
-const liveSweepSignals: Signal[] = [
-  {
-    id: "live-1",
-    summary: "Strait of Hormuz Crisis: U.S. Navy Begins Naval Escorts",
-    riskScore: 9,
-    whyItMatters: "Direct intervention by the U.S. Navy to protect energy transit significantly increases the risk of kinetic friction with regional forces.",
-    whatToWatch: "Naval engagement rules of encounter and retaliatory drone deployments.",
+const countryCoordinates: Record<string, { lat: number, lng: number }> = {
+  "USA": { lat: 37.0902, lng: -95.7129 },
+  "China": { lat: 35.8617, lng: 104.1954 },
+  "India": { lat: 20.5937, lng: 78.9629 },
+  "Pakistan": { lat: 30.3753, lng: 69.3451 },
+  "Russia": { lat: 61.5240, lng: 105.3188 },
+  "Germany": { lat: 51.1657, lng: 10.4515 },
+  "Iran": { lat: 32.4279, lng: 53.6880 },
+  "Israel": { lat: 31.0461, lng: 34.8516 },
+  "Sudan": { lat: 12.8628, lng: 30.2176 },
+  "Mali": { lat: 17.5707, lng: -3.9962 },
+  "UAE": { lat: 23.4241, lng: 53.8478 },
+  "Singapore": { lat: 1.3521, lng: 103.8198 },
+  "Brazil": { lat: -14.2350, lng: -51.9253 },
+  "Congo": { lat: -0.2280, lng: 15.8277 },
+  "Gaza": { lat: 31.3547, lng: 34.3088 },
+  "Middle East": { lat: 29.2985, lng: 42.5510 },
+  "Europe": { lat: 54.5260, lng: 15.2551 },
+  "Asia": { lat: 34.0479, lng: 100.6197 },
+  "Africa": { lat: 8.7832, lng: 34.5085 }
+};
+
+const getCategoryFromText = (title: string, summary: string): ThreatCategory => {
+  const text = (title + " " + summary).toLowerCase();
+  if (
+    text.includes("cyber") ||
+    text.includes("semiconductor") ||
+    text.includes("chip") ||
+    text.includes("ai ") ||
+    text.includes("digital") ||
+    text.includes("technology") ||
+    text.includes("telecom") ||
+    text.includes("satellite") ||
+    text.includes("quantum") ||
+    text.includes("software")
+  ) {
+    return "technology";
+  }
+  if (
+    text.includes("oil") ||
+    text.includes("gas") ||
+    text.includes("energy") ||
+    text.includes("trade") ||
+    text.includes("tariff") ||
+    text.includes("supply chain") ||
+    text.includes("economic") ||
+    text.includes("shipping") ||
+    text.includes("ports") ||
+    text.includes("sanctions") ||
+    text.includes("grain") ||
+    text.includes("crude")
+  ) {
+    return "energy";
+  }
+  if (
+    text.includes("summit") ||
+    text.includes("treaty") ||
+    text.includes("accord") ||
+    text.includes("talks") ||
+    text.includes("diplomatic") ||
+    text.includes("alliance") ||
+    text.includes("relations") ||
+    text.includes("partnership") ||
+    text.includes("ambassador") ||
+    text.includes("visit")
+  ) {
+    return "diplomacy";
+  }
+  return "security";
+};
+
+const getConnectionsFromText = (sourceCountry: string, title: string, summary: string, category: ThreatCategory): ArcConnection[] => {
+  const text = (title + " " + summary).toLowerCase();
+  const connections: ArcConnection[] = [];
+  
+  for (const [country, coords] of Object.entries(countryCoordinates)) {
+    if (country.toLowerCase() === sourceCountry.toLowerCase()) continue;
+    if (["Middle East", "Europe", "Asia", "Africa"].includes(country)) continue;
+    
+    if (text.includes(country.toLowerCase())) {
+      let type: 'tension' | 'alliance' | 'trade' | 'tech' = 'tension';
+      if (category === 'diplomacy') type = 'alliance';
+      else if (category === 'energy') type = 'trade';
+      else if (category === 'technology') type = 'tech';
+      
+      connections.push({
+        targetCountry: country,
+        targetCoords: coords,
+        type
+      });
+    }
+  }
+  
+  if (connections.length === 0) {
+    let defaultTarget = "USA";
+    if (sourceCountry === "USA") defaultTarget = "China";
+    else if (sourceCountry === "China") defaultTarget = "USA";
+    else if (sourceCountry === "India") defaultTarget = "USA";
+    else defaultTarget = "India";
+    
+    let type: 'tension' | 'alliance' | 'trade' | 'tech' = 'tension';
+    if (category === 'diplomacy') type = 'alliance';
+    else if (category === 'energy') type = 'trade';
+    else if (category === 'technology') type = 'tech';
+    
+    connections.push({
+      targetCountry: defaultTarget,
+      targetCoords: countryCoordinates[defaultTarget] || countryCoordinates["India"],
+      type
+    });
+  }
+  
+  return connections;
+};
+
+interface StoryAnalysis {
+  secondOrderImpact: SecondOrderImpact;
+  perspectives: AnalyticalLenses;
+  confidenceScore: number;
+  whatToWatch: string;
+  keyTakeaway: string;
+}
+
+const mapStoryToSignal = (story: any, analysis?: StoryAnalysis): Signal => {
+  let coords = { lat: 0, lng: 0 };
+  let region = story.issue?.name || "Global";
+  
+  for (const [country, pos] of Object.entries(countryCoordinates)) {
+    if (story.title.includes(country) || story.summary.includes(country)) {
+      coords = pos;
+      region = country;
+      break;
+    }
+  }
+
+  if (coords.lat === 0) {
+    if (story.summary.includes("Europe")) coords = countryCoordinates["Europe"];
+    else if (story.summary.includes("Asia")) coords = countryCoordinates["Asia"];
+    else if (story.summary.includes("Middle East")) coords = countryCoordinates["Middle East"];
+    else if (story.summary.includes("Africa")) coords = countryCoordinates["Africa"];
+    else {
+      coords = { lat: (Math.random() - 0.5) * 40, lng: (Math.random() - 0.5) * 100 };
+    }
+  }
+
+  const category = getCategoryFromText(story.title, story.summary);
+  const connections = getConnectionsFromText(region, story.title, story.summary, category);
+
+  return {
+    id: story.id,
+    summary: story.title,
+    riskScore: story.relevance || 5,
+    sourceUrl: story.sourceUrl,
+    whyItMatters: story.relevanceSummary || story.summary.substring(0, 150) + "...",
+    whatToWatch: analysis?.whatToWatch || "Intelligence indicators suggest " + (story.relevanceReasons?.split('\n')[0]?.replace(/^- \*\*/, '').replace(/\*\*:.*$/, '') || "monitoring required."),
     isNoise: false,
     context: {
-      region: "Middle East",
-      involvedCountries: ["USA", "Iran", "Saudi Arabia"],
-      historicalContext: "Persistent disruptions in the world's most critical oil chokepoint.",
-      existingTensions: "Long-standing blockade threats.",
-      isoAlpha3: ["USA", "IRN", "SAU"],
-      coordinates: { lat: 26.5, lng: 56.2 }
+      region: region,
+      involvedCountries: [region],
+      historicalContext: "Dynamic geopolitical event captured via real-time feed.",
+      existingTensions: story.issue?.name || "Global stability",
+      isoAlpha3: [],
+      coordinates: coords
     },
     intelligence: {
-      confidenceScore: 9,
-      whatChanged: "New: U.S. Navy shift from monitoring to active escorting.",
-      secondOrderImpact: {
-        economic: "High volatility in Brent crude; spike in maritime insurance.",
-        political: "Urgent UNSC consultations.",
-        strategic: "Accelerated deployment of autonomous naval strike groups."
+      confidenceScore: analysis?.confidenceScore ?? (story.relevance || 7) + 1,
+      whatChanged: "Live Update: " + (story.titleLabel || "New Development"),
+      secondOrderImpact: analysis?.secondOrderImpact || {
+        economic: "Potential disruption to regional markets.",
+        political: "Increased diplomatic pressure on local actors.",
+        strategic: "Shift in regional power dynamics."
       }
     },
-    xContent: { shortPost: "", thread: [] },
+    xContent: {
+      shortPost: `${story.title} #Geopolitics #Alert`,
+      thread: [story.summary]
+    },
     voices: {
-      perspectives: {
-        strategic: "Shift from containment to active projection of power; redefines maritime security rules in the Persian Gulf.",
-        economic: "Heightened risk of supply chain decoupling if kinetic friction leads to prolonged chokepoint closures.",
-        risk: "Direct naval escorting drastically lowers the threshold for accidental escalation between state actors."
+      perspectives: analysis?.perspectives || {
+        strategic: "Long-term implications for regional security architecture.",
+        economic: "Supply chain vulnerabilities exposed by current events.",
+        risk: "Elevated risk of unintended escalation."
       },
-      keyTakeaway: "A calculated military escalation intended to preserve trade flow, but one that invites asymmetrical responses.",
+      keyTakeaway: analysis?.keyTakeaway || story.relevanceSummary || "Continuous monitoring of this development is advised.",
       externalCommentary: [
         {
-          author: "@MaritimeIntel",
-          excerpt: "US Navy escorts in Hormuz are a massive signal. Insurance rates will skyrocket before they stabilize.",
-          url: "https://x.com/MaritimeIntel/status/1"
-        },
-        {
-          author: "@GlobalOilWatch",
-          excerpt: "Energy markets are pricing in a 20% risk of total blockage. This is the new baseline.",
-          url: "https://x.com/GlobalOilWatch/status/2"
+          author: story.sourceTitle || "Intelligence Source",
+          excerpt: story.quote || "Critical development in progress.",
+          url: story.sourceUrl || "#"
         }
       ]
+    },
+    category,
+    connections
+  };
+};
+
+const ANALYSIS_CHUNK_SIZE = 5;
+const ANALYSIS_TIMEOUT_MS = 20000;
+
+const fetchAnalysisChunk = async (chunk: any[], analysisMap: Map<string, StoryAnalysis>) => {
+  try {
+    const response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        stories: chunk.map(s => ({ id: s.id, title: s.title, summary: s.summary, source: s.sourceTitle || s.source || '' }))
+      }),
+      signal: AbortSignal.timeout(ANALYSIS_TIMEOUT_MS)
+    });
+    if (!response.ok) return;
+    const { results } = await response.json();
+    for (const result of results || []) {
+      if (result?.id) analysisMap.set(result.id, result);
     }
-  },
+  } catch (error) {
+    console.error("Batch analysis chunk failed, using fallback text:", error);
+  }
+};
+
+const fetchBatchAnalysis = async (stories: any[]): Promise<Map<string, StoryAnalysis>> => {
+  const analysisMap = new Map<string, StoryAnalysis>();
+  const chunks: any[][] = [];
+  for (let i = 0; i < stories.length; i += ANALYSIS_CHUNK_SIZE) {
+    chunks.push(stories.slice(i, i + ANALYSIS_CHUNK_SIZE));
+  }
+  await Promise.all(chunks.map(chunk => fetchAnalysisChunk(chunk, analysisMap)));
+  return analysisMap;
+};
+
+export const fetchProcessedSignals = async (): Promise<Signal[]> => {
+  try {
+    const articles = await fetchArticles();
+    if (articles.length === 0) return [];
+
+    const stories = articles.map(a => ({
+      id: a.id,
+      title: a.title,
+      summary: a.telegramAnalysis,
+      sourceUrl: a.sourceUrl,
+      sourceTitle: a.source,
+    }));
+
+    const analysisMap = await fetchBatchAnalysis(stories);
+
+    return stories.map(story => mapStoryToSignal(story, analysisMap.get(story.id)));
+  } catch (error) {
+    console.error("Live news fetch failed, falling back to cached data:", error);
+    return [];
+  }
+};
+
+export interface Article {
+  id: string;
+  title: string;
+  date: string;
+  source: string;
+  sourceUrl: string;
+  telegramAnalysis: string;
+  fullArticle: string;
+}
+
+const mockArticles: Article[] = [
   {
-    id: "live-2",
-    summary: "NATO Shift: Pentagon Confirms Germany Troop Withdrawal",
-    riskScore: 8,
-    whyItMatters: "The removal of 5,000 U.S. troops creates a security vacuum in Central Europe.",
-    whatToWatch: "Polish and Baltic responses; potential bilateral security pacts.",
-    isNoise: false,
-    context: {
-      region: "Europe",
-      involvedCountries: ["Germany", "USA", "Poland"],
-      historicalContext: "Post-WWII security architecture built on U.S. presence.",
-      existingTensions: "European Strategic Autonomy vs. U.S. pivots.",
-      isoAlpha3: ["DEU", "USA", "POL"],
-      coordinates: { lat: 51.1, lng: 10.4 }
-    },
-    intelligence: {
-      confidenceScore: 8,
-      whatChanged: "Confirmed timeline: Withdrawal to complete within 6-12 months.",
-      secondOrderImpact: {
-        economic: "Decline in localized service economies.",
-        political: "Weakening of Berlin's leverage.",
-        strategic: "Russia likely to interpret this as a reduction in deterrence."
-      }
-    },
-    xContent: { shortPost: "", thread: [] },
-    voices: {
-      perspectives: {
-        strategic: "Signals a pivot from static European defense to dynamic global troop allocation; weakens NATO's eastern cohesion.",
-        economic: "Localized economic contraction in base regions; shift in defense spending toward Eastern European hubs.",
-        risk: "Creates a 'deterrence gap' that regional adversaries may test through gray-zone operations."
-      },
-      keyTakeaway: "The end of the post-WWII security status quo in Germany, forcing Europe toward strategic autonomy.",
-      externalCommentary: [
-        {
-          author: "@EuroDefenseAnalyst",
-          excerpt: "The Germany withdrawal is a wake-up call for EU defense. The 'umbrella' is folding.",
-          url: "https://x.com/EuroDefenseAnalyst/status/3"
-        }
-      ]
-    }
-  },
-  {
-    id: "live-3",
-    summary: "Digital Cold War: China Blocks Meta Expansion in Singapore",
-    riskScore: 7,
-    whyItMatters: "Ownership of AI talent and data is now a matter of national sovereignty.",
-    whatToWatch: "Retaliatory blocks on Chinese AI startups by Western tech regulators.",
-    isNoise: false,
-    context: {
-      region: "Southeast Asia",
-      involvedCountries: ["China", "Singapore", "USA"],
-      historicalContext: "The 'Splinternet' continues to fracture.",
-      existingTensions: "AI supremacy race between Silicon Valley and Beijing.",
-      isoAlpha3: ["CHN", "SGP", "USA"],
-      coordinates: { lat: 1.35, lng: 103.8 }
-    },
-    intelligence: {
-      confidenceScore: 9,
-      whatChanged: "New: Direct state intervention in AI talent acquisition.",
-      secondOrderImpact: {
-        economic: "Chilling effect on M&A in AI startups.",
-        political: "Singapore caught in a 'technological neutral' tightrope.",
-        strategic: "Creation of separate Western/Chinese AI ecosystems."
-      }
-    },
-    xContent: { shortPost: "", thread: [] },
-    voices: {
-      perspectives: {
-        strategic: "Formalization of technological sovereignty; AI talent is the new 'oil' of national security.",
-        economic: "Fragmented markets for AI services; increased cost of compliance for multinational tech firms.",
-        risk: "Escalation of the 'Digital Iron Curtain' increases the risk of tit-for-tat regulatory warfare."
-      },
-      keyTakeaway: "AI is no longer a commercial asset but a primary instrument of state power and control.",
-      externalCommentary: [
-        {
-          author: "@TechGeopolitics",
-          excerpt: "Singapore is the first major battleground for AI talent sovereignty. Expect more blocks soon.",
-          url: "https://x.com/TechGeopolitics/status/4"
-        }
-      ]
-    }
-  },
-  {
-    id: "live-4",
-    summary: "Economic Shock: Dubai Airport Reports 66% Traffic Drop",
-    riskScore: 8,
-    whyItMatters: "Signals a total collapse in regional logistics and tourism connectivity due to ongoing missile threats.",
-    whatToWatch: "Bankruptcy risks for major regional carriers and emergency debt restructuring.",
-    isNoise: false,
-    context: {
-      region: "Middle East",
-      involvedCountries: ["UAE", "Qatar", "Saudi Arabia"],
-      historicalContext: "Dubai is the world's busiest international hub.",
-      existingTensions: "Regional conflict spillover into civil infrastructure.",
-      isoAlpha3: ["ARE", "QAT", "SAU"],
-      coordinates: { lat: 25.2, lng: 55.3 }
-    },
-    intelligence: {
-      confidenceScore: 10,
-      whatChanged: "Deterioration: Traffic decline accelerated by 20% this week.",
-      secondOrderImpact: {
-        economic: "Massive shortfall in regional non-oil GDP.",
-        political: "Increased pressure on UAE to mediate a ceasefire.",
-        strategic: "Permanent shift in global transit routes toward Central Asian corridors."
-      }
-    },
-    xContent: { shortPost: "", thread: [] },
-    voices: {
-      perspectives: {
-        strategic: "Vulnerability of global transit hubs to low-cost precision strikes; redefines 'safe haven' status in the Gulf.",
-        economic: "Severe disruption to the 'hub-and-spoke' aviation model; long-term damage to Dubai's tourism brand.",
-        risk: "High risk of regional capital flight if missile threats transition from occasional to persistent."
-      },
-      keyTakeaway: "The 'safe' status of global financial hubs is being eroded by regional kinetic spillover.",
-      externalCommentary: [
-        {
-          author: "@AviationInsider",
-          excerpt: "66% drop in DXB traffic is unprecedented. The global aviation map is being rewritten.",
-          url: "https://x.com/AviationInsider/status/5"
-        }
-      ]
-    }
-  },
-  {
-    id: "live-5",
-    summary: "Diplomatic Channel: Pakistan Mediates 14-Point Ceasefire Plan",
-    riskScore: 6,
-    whyItMatters: "First credible path to de-escalation in the Iran-US standoff, though hardliners on both sides remain skeptical.",
-    whatToWatch: "Reaction from the U.S. State Department and Tehran's Supreme Leader in the next 24 hours.",
-    isNoise: false,
-    context: {
-      region: "Central Asia / Middle East",
-      involvedCountries: ["Pakistan", "Iran", "USA"],
-      historicalContext: "Pakistan has long acted as a backchannel for US-Iran talks.",
-      existingTensions: "Mutual distrust following recent retaliatory strikes.",
-      isoAlpha3: ["PAK", "IRN", "USA"],
-      coordinates: { lat: 30.3, lng: 69.3 }
-    },
-    intelligence: {
-      confidenceScore: 7,
-      whatChanged: "New: Formal submission of written terms for the first time in 6 months.",
-      secondOrderImpact: {
-        economic: "Temporary cooling of oil price futures.",
-        political: "Boost to Pakistan's regional diplomatic standing.",
-        strategic: "Potential opening for a 'Grand Bargain' on regional security."
-      }
-    },
-    xContent: { shortPost: "", thread: [] },
-    voices: {
-      perspectives: {
-        strategic: "Test of Pakistan's ability to act as a neutral arbiter; potential opening for regional de-escalation.",
-        economic: "Potential for stabilization of regional energy prices if ceasefire holds.",
-        risk: "High fragility; single kinetic event could collapse the 14-point framework immediately."
-      },
-      keyTakeaway: "A fragile but necessary diplomatic 'off-ramp' in a period of high-intensity friction.",
-      externalCommentary: [
-        {
-          author: "@DiplomacyToday",
-          excerpt: "The 14-point plan is the most detailed Pakistan has ever proposed. Real stakes here.",
-          url: "https://x.com/DiplomacyToday/status/6"
-        }
-      ]
-    }
-  },
-  {
-    id: "live-6",
-    summary: "Military Alert: Nakba Day Mobilization Warnings Issued",
-    riskScore: 9,
-    whyItMatters: "Historically a high-tension period; current regional wars make the May 15-16 window a 'critical danger' zone for kinetic spillover.",
-    whatToWatch: "Troop movements along the Blue Line (Lebanon) and internal security measures in Israel.",
-    isNoise: false,
-    context: {
-      region: "Middle East",
-      involvedCountries: ["Israel", "Lebanon", "Jordan", "Iran"],
-      historicalContext: "Annual commemorations often result in clashes.",
-      existingTensions: "Highest level of regional mobilization since 1973.",
-      isoAlpha3: ["ISR", "LBN", "JOR", "IRN"],
-      coordinates: { lat: 31.7, lng: 35.2 }
-    },
-    intelligence: {
-      confidenceScore: 8,
-      whatChanged: "Escalation: Intelligence indicators suggest pre-planned coordinate strikes.",
-      secondOrderImpact: {
-        economic: "Total shutdown of tourism and business travel to the Levant.",
-        political: "Risk of internal destabilization in bordering monarchies.",
-        strategic: "Requirement for full-scale regional air defense readiness."
-      }
-    },
-    xContent: { shortPost: "", thread: [] },
-    voices: {
-      perspectives: {
-        strategic: "Convergence of historical grievances with modern kinetic capabilities; creates a 'perfect storm' for escalation.",
-        economic: "Complete halt of regional infrastructure investment; total loss of insurance coverage for the Levant.",
-        risk: "Highest risk of full-scale regional war since 1973; requires immediate high-level mediation."
-      },
-      keyTakeaway: "A critical temporal window where symbolic tension meets maximum military mobilization.",
-      externalCommentary: [
-        {
-          author: "@LevantMonitor",
-          excerpt: "Mobilization levels are off the charts. This May 15th window is the most dangerous in decades.",
-          url: "https://x.com/LevantMonitor/status/7"
-        }
-      ]
-    }
-  },
-  {
-    id: "live-7",
-    summary: "Victory Day Readiness: Russia Prepares 2026 Moscow Parade",
-    riskScore: 7,
-    whyItMatters: "Will be used to signal military resilience and showcase new autonomous systems despite ongoing sanctions.",
-    whatToWatch: "Presence of high-level international observers from the BRICS+ bloc.",
-    isNoise: false,
-    context: {
-      region: "Europe / Russia",
-      involvedCountries: ["Russia", "Ukraine", "China"],
-      historicalContext: "Victory Day is the primary symbol of Russian military nationalism.",
-      existingTensions: "Ongoing conflict in Ukraine and Western isolation.",
-      isoAlpha3: ["RUS", "UKR", "CHN"],
-      coordinates: { lat: 55.7, lng: 37.6 }
-    },
-    intelligence: {
-      confidenceScore: 9,
-      whatChanged: "Shift: High emphasis on 'Strategic Partnership' themes with the Global South.",
-      secondOrderImpact: {
-        economic: "Signaling of a long-term 'War Economy' transition.",
-        political: "Consolidation of domestic support for protracted conflict.",
-        strategic: "Display of new 'Gray Zone' tech capabilities."
-      }
-    },
-    xContent: { shortPost: "", thread: [] },
-    voices: {
-      perspectives: {
-        strategic: "Projection of 'fortress resilience' to a domestic and Global South audience; signals multi-year conflict readiness.",
-        economic: "Full transition to a war economy; dependency on shadow fleets and non-Western financial rails.",
-        risk: "Normalization of long-term conflict reduces the pressure for immediate diplomatic resolution."
-      },
-      keyTakeaway: "The 2026 parade is a strategic messaging tool to signal endurance over immediate victory.",
-      externalCommentary: [
-        {
-          author: "@RussiaPolitics",
-          excerpt: "The shift to autonomous systems in this parade is the main story. Sanctions haven't stopped tech dev.",
-          url: "https://x.com/RussiaPolitics/status/8"
-        }
-      ]
-    }
+    id: "art_example_1",
+    title: "Navigating the New Axis: India's Strategic Balancing in Eurasia",
+    date: new Date().toISOString(),
+    source: "GeoStrat Research",
+    sourceUrl: "https://t.me/IndiaWorldIntel",
+    telegramAnalysis: "India's strategic autonomy remains key as Eurasian power dynamics shift. A realist assessment of India's posture amidst the China-Russia axis.",
+    fullArticle: `
+# Executive Summary
+The shifting axis in Eurasia presents a double-edged sword for New Delhi. As Moscow and Beijing forge closer ties, India must recalibrate its continental security posture while reinforcing its maritime partnerships.
+
+# Strategic Implications
+India's realist foreign policy is centered on multipolarity. By maintaining strategic relationships with both Russia and Western partners, India acts as a stabilizing pole. However, the depth of the China-Russia strategic partnership forces India to accelerate domestic defense modernization and diversify key supply chains.
+
+# Economic & Resource Reality
+Energy security remains the cornerstone of India's Eurasian outreach. Importing Russian crude at discounted rates has insulated the Indian economy from global inflation, but long-term transit corridors like the International North-South Transport Corridor (INSTC) must be fast-tracked to bypass volatile maritime checkpoints.
+
+# The Path Ahead
+New Delhi must continue its pragmatism—combining tactical alignment on energy with absolute deterrence on the Himalayan border. Strategic independence is not isolation; it is the freedom to choose partnerships that maximize national interest.
+    `.trim()
   }
 ];
 
-export const fetchProcessedSignals = async (): Promise<Signal[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(liveSweepSignals);
-    }, 1200);
-  });
+export const fetchArticles = async (): Promise<Article[]> => {
+  try {
+    const repo = 'chokoboy6266-web/geopolitical-dashboard';
+    const url = `https://raw.githubusercontent.com/${repo}/main/api/articles.json`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      const localResponse = await fetch('/api/articles.json').catch(() => null);
+      if (localResponse && localResponse.ok) {
+        const list = await localResponse.json();
+        return list.length > 0 ? list : mockArticles;
+      }
+      return mockArticles;
+    }
+    const list = await response.json();
+    return list.length > 0 ? list : mockArticles;
+  } catch (error) {
+    console.error("Failed to fetch articles:", error);
+    try {
+      const localResponse = await fetch('/api/articles.json');
+      if (localResponse.ok) {
+        const list = await localResponse.json();
+        return list.length > 0 ? list : mockArticles;
+      }
+    } catch {}
+    return mockArticles;
+  }
 };
+

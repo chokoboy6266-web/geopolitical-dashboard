@@ -337,3 +337,24 @@ body {
     background-position: 468px 0;
   }
 }
+
+/* Telegram Growth Button Pulse */
+.pulse-button {
+  animation: telegram-pulse 2s infinite;
+}
+
+@keyframes telegram-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 136, 204, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 15px rgba(0, 136, 204, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 136, 204, 0);
+  }
+}
+
+.category-filters::-webkit-scrollbar {
+  display: none;
+}
