@@ -190,10 +190,16 @@ interface StoryAnalysis {
   keyTakeaway: string;
 }
 
+const jitterSeed = (str: string): number => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) | 0;
+  return hash;
+};
+
 const mapStoryToSignal = (story: any, analysis?: StoryAnalysis): Signal => {
   let coords = { lat: 0, lng: 0 };
   let region = story.issue?.name || "Global";
-  
+
   for (const [country, pos] of Object.entries(countryCoordinates)) {
     if (story.title.includes(country) || story.summary.includes(country)) {
       coords = pos;
@@ -210,6 +216,13 @@ const mapStoryToSignal = (story: any, analysis?: StoryAnalysis): Signal => {
     else {
       coords = { lat: (Math.random() - 0.5) * 40, lng: (Math.random() - 0.5) * 100 };
     }
+  } else {
+    // Spread out signals that resolve to the same country so they don't stack into one invisible point on the globe.
+    const seed = jitterSeed(story.id || story.title);
+    coords = {
+      lat: coords.lat + (((seed % 200) / 100) - 1) * 3,
+      lng: coords.lng + ((((seed >> 8) % 200) / 100) - 1) * 3
+    };
   }
 
   const category = getCategoryFromText(story.title, story.summary);
