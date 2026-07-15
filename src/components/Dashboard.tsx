@@ -334,9 +334,10 @@ const Dashboard: React.FC = () => {
               height: isMobile ? '100%' : '100%',
               flexShrink: 0
             }}>
-              <SidePanel 
-                signals={filteredSignals} 
-                selectedIsoCode={selectedSignalId} 
+              <SidePanel
+                signals={filteredSignals}
+                loading={loading}
+                selectedIsoCode={selectedSignalId}
                 voicesEnabled={voicesEnabled}
                 onToggleVoices={() => setVoicesEnabled(!voicesEnabled)}
                 selectedCategory={selectedCategory}

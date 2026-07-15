@@ -4,6 +4,7 @@ import SignalCard from "./SignalCard";
 
 interface SidePanelProps {
   signals: Signal[];
+  loading: boolean;
   selectedIsoCode: string | null;
   voicesEnabled: boolean;
   onToggleVoices: () => void;
@@ -12,11 +13,12 @@ interface SidePanelProps {
   onSelectCategory: (category: string) => void;
 }
 
-const SidePanel: React.FC<SidePanelProps> = ({ 
-  signals, 
-  selectedIsoCode, 
-  voicesEnabled, 
-  onToggleVoices, 
+const SidePanel: React.FC<SidePanelProps> = ({
+  signals,
+  loading,
+  selectedIsoCode,
+  voicesEnabled,
+  onToggleVoices,
   onClearSelection,
   selectedCategory,
   onSelectCategory
@@ -175,7 +177,9 @@ const SidePanel: React.FC<SidePanelProps> = ({
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
-        {filteredSignals.length === 0 ? (
+        {loading ? (
+          <div style={{ textAlign: 'center', color: '#666', marginTop: '2rem' }}>Fetching live intelligence feed...</div>
+        ) : filteredSignals.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#666', marginTop: '2rem' }}>No active signals in this region.</div>
         ) : (
           filteredSignals.map(signal => (
