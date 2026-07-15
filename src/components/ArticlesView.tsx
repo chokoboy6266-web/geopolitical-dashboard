@@ -192,7 +192,14 @@ const ArticlesView: React.FC<ArticlesViewProps> = ({ selectedArticleId, onSelect
           </div>
         ) : (
           <div style={{ padding: '2.5rem max(2rem, 8%)', maxWidth: '850px', margin: '0 auto', width: '100%' }}>
-            
+
+            {/* Creator masthead */}
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+              <span style={{ fontSize: '0.7rem', fontWeight: 'bold', letterSpacing: '0.15em', textTransform: 'uppercase', color: '#4dabf7' }}>
+                Shivam Punjabi
+              </span>
+            </div>
+
             {/* Header metadata */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1rem' }}>
               <span style={{ 
@@ -248,10 +255,7 @@ const ArticlesView: React.FC<ArticlesViewProps> = ({ selectedArticleId, onSelect
                 }}>
                   SP
                 </div>
-                <div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#eee' }}>Shivam Punjabi</div>
-                  <div style={{ fontSize: '0.75rem', color: '#666' }}>Creator</div>
-                </div>
+                <div style={{ fontSize: '0.75rem', color: '#666' }}>Creator</div>
               </div>
 
               {/* Share links */}
