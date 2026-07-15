@@ -9,7 +9,7 @@ function truncate(text: string, max: number): string {
   return text.slice(0, max - 1).trimEnd() + '…';
 }
 
-export async function postToBluesky(text: string, opts?: { url?: string; title?: string; description?: string }): Promise<void> {
+export async function postToBluesky(text: string, opts?: { url?: string; title?: string; description?: string; imageUrl?: string }): Promise<void> {
   if (!BLUESKY_HANDLE || !BLUESKY_APP_PASSWORD) return;
   try {
     const sessionRes = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
@@ -22,12 +22,10 @@ export async function postToBluesky(text: string, opts?: { url?: string; title?:
 
     const truncated = truncate(text, 300);
 
-    // Bluesky doesn't auto-linkify URLs in post text - it needs an explicit
+    // Bluesky doesn't auto-linkify URLs in post text - each one needs an explicit
     // byte-range "facet" annotation for the link to be clickable.
     const facets: any[] = [];
-    const urlMatch = truncated.match(/https?:\/\/\S+/);
-    const linkUrl = opts?.url || urlMatch?.[0];
-    if (urlMatch) {
+    for (const urlMatch of truncated.matchAll(/https?:\/\/\S+/g)) {
       const byteStart = Buffer.byteLength(truncated.slice(0, urlMatch.index), 'utf8');
       const byteEnd = byteStart + Buffer.byteLength(urlMatch[0], 'utf8');
       facets.push({
@@ -35,32 +33,40 @@ export async function postToBluesky(text: string, opts?: { url?: string; title?:
         features: [{ $type: 'app.bsky.richtext.facet#link', uri: urlMatch[0] }]
       });
     }
+    const linkUrl = opts?.url || facets[0]?.features[0]?.uri;
 
     // Link card with image also needs an explicit embed - it doesn't unfurl automatically either.
+    // Try the article's own image first, falling back to the brand banner if unavailable.
     let embed: any;
     if (linkUrl) {
-      try {
-        const imgRes = await fetch('https://geopolitical-dashboard-steel.vercel.app/brand/banner-1500x500.png');
-        const imgBuf = Buffer.from(await imgRes.arrayBuffer());
-        const uploadRes = await fetch('https://bsky.social/xrpc/com.atproto.repo.uploadBlob', {
-          method: 'POST',
-          headers: { 'Content-Type': 'image/png', Authorization: `Bearer ${session.accessJwt}` },
-          body: imgBuf
-        });
-        const uploadData = await uploadRes.json();
-        if (uploadData.blob) {
-          embed = {
-            $type: 'app.bsky.embed.external',
-            external: {
-              uri: linkUrl,
-              title: opts?.title || 'India World Intel',
-              description: opts?.description || 'Geopolitical intelligence, India-first strategic analysis.',
-              thumb: uploadData.blob
-            }
-          };
+      const candidateImages = [opts?.imageUrl, 'https://geopolitical-dashboard-steel.vercel.app/brand/banner-1500x500.png'].filter(Boolean);
+      for (const imageUrl of candidateImages) {
+        try {
+          const imgRes = await fetch(imageUrl as string);
+          if (!imgRes.ok) continue;
+          const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+          const imgBuf = Buffer.from(await imgRes.arrayBuffer());
+          const uploadRes = await fetch('https://bsky.social/xrpc/com.atproto.repo.uploadBlob', {
+            method: 'POST',
+            headers: { 'Content-Type': contentType, Authorization: `Bearer ${session.accessJwt}` },
+            body: imgBuf
+          });
+          const uploadData = await uploadRes.json();
+          if (uploadData.blob) {
+            embed = {
+              $type: 'app.bsky.embed.external',
+              external: {
+                uri: linkUrl,
+                title: opts?.title || 'India World Intel',
+                description: opts?.description || 'Geopolitical intelligence, India-first strategic analysis.',
+                thumb: uploadData.blob
+              }
+            };
+            break;
+          }
+        } catch (e) {
+          console.error('Bluesky embed image attempt failed:', e);
         }
-      } catch (e) {
-        console.error('Bluesky embed image failed (posting without card):', e);
       }
     }
 

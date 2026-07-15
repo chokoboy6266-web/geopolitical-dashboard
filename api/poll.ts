@@ -115,6 +115,17 @@ async function updateStoredArticles(articles: any[]) {
   } catch (e) { console.error('Articles Update Failed:', e); }
 }
 
+async function getArticleImage(articleUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(articleUrl);
+    const html = await res.text();
+    const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+    return match ? match[1] : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function escapeHTML(str: string) {
   return str.replace(/[&<>"']/g, m => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
@@ -137,11 +148,10 @@ export default async function handler(req: any, res: any) {
       const sourceMatch = item.match(/<source[^>]*url=["'](.*?)["'][^>]*>(.*?)<\/source>/i);
       
       const title = (titleMatch ? titleMatch[1] : '').replace(/&amp;/g, '&').trim();
-      const link = (linkMatch ? linkMatch[1] : '').trim();
+      const articleLink = (linkMatch ? linkMatch[1] : '').trim();
       const sourceName = (sourceMatch ? sourceMatch[2] : (item.match(/<source[^>]*>(.*?)<\/source>/i)?.[1] || 'Global Source')).split('<')[0].trim();
-      const directUrl = sourceMatch ? sourceMatch[1].trim() : link;
-      
-      return { title, link: directUrl, source: sourceName };
+
+      return { title, link: articleLink, source: sourceName };
     }).filter(item => item.title && item.link);
 
     if (newsItems.length === 0) return res.status(200).json({ status: 'no valid news' });
@@ -229,12 +239,16 @@ ${analysis}
       }),
     });
 
-    const socialPitch = `🚨 ${selectedNews.title}\n\n${webArticleLink}`;
+    const articleImage = await getArticleImage(selectedNews.link);
+
+    const twoLinkPitch = `🚨 ${selectedNews.title}\n\n📰 Article: ${selectedNews.link}\n🌐 Dashboard: ${webArticleLink}`;
+    const socialPitch = twoLinkPitch.length <= 300 ? twoLinkPitch : `🚨 ${selectedNews.title}\n\n${webArticleLink}`;
     await Promise.allSettled([
       postToBluesky(socialPitch, {
         url: webArticleLink,
         title: selectedNews.title,
-        description: `Strategic analysis via India World Intel — ${source}`
+        description: `Strategic analysis via India World Intel — ${source}`,
+        imageUrl: articleImage
       }),
       postToThreads(socialPitch)
     ]);
