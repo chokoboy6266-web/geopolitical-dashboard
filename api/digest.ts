@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { postToBluesky, postToThreads } from './_lib/social';
+import { postToBluesky, postToThreads } from './_lib/social.js';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GROQ_API_KEY = process.env.GROK_API_KEY; // Groq (fast inference), not xAI's Grok
