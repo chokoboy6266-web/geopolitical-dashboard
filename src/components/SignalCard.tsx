@@ -89,6 +89,12 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, voicesEnabled }) => {
           </div>
         </div>
 
+        {signal.source && (
+          <div style={{ color: '#666', fontSize: '0.7rem', fontWeight: '600', letterSpacing: '0.03em', marginBottom: '0.6rem', textTransform: 'uppercase' }}>
+            📰 {signal.source}
+          </div>
+        )}
+
         <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '1.25rem', lineHeight: '1.5' }}>{signal.whyItMatters}</p>
 
         <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>

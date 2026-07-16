@@ -23,6 +23,11 @@ const Dashboard: React.FC = () => {
   const [isMobile, setIsMobile] = useState<boolean>(window.innerWidth < 768);
   const [activeTab, setActiveTab] = useState<'globe' | 'news' | 'articles'>('globe');
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
+  // Imperative (non-React-state) tooltip: hover must never trigger a Dashboard re-render, because
+  // that would rebuild every marker DOM node (react-globe.gl treats a new pointsData/htmlElement
+  // identity as "all markers changed"), which re-fires mouseenter on the node under the cursor and
+  // loops forever.
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -99,16 +104,16 @@ const Dashboard: React.FC = () => {
     return s.category === selectedCategory;
   });
 
-  // Dynamic Point Markers for the Globe
+  // Dynamic Marker Data for the Globe
   const pointsData = filteredSignals.map(s => {
     const isSelected = s.id === selectedSignalId;
     return {
       lat: s.context.coordinates.lat,
       lng: s.context.coordinates.lng,
-      size: isSelected ? 1.5 : 0.8,
+      isSelected,
       color: CATEGORY_COLORS[s.category] || '#f03e3e',
-      label: `<b>${s.summary}</b><br/>Risk Level: ${s.riskScore}<br/>Category: <span style="color: ${CATEGORY_COLORS[s.category]}">${s.category.toUpperCase()}</span>`,
-      id: s.id
+      id: s.id,
+      signalRef: s
     };
   });
 
@@ -137,15 +142,85 @@ const Dashboard: React.FC = () => {
   const handlePointClick = (point: any) => {
     setSelectedSignalId(point.id);
     if (isMobile) setActiveTab('news'); // Auto-switch to news on mobile when point is clicked
-    
+
     // Deep Zoom to the region
     if (globeRef.current) {
-      globeRef.current.pointOfView({ 
-        lat: point.lat, 
-        lng: point.lng, 
-        altitude: 0.6 
+      globeRef.current.pointOfView({
+        lat: point.lat,
+        lng: point.lng,
+        altitude: 0.6
       }, 1500);
     }
+  };
+
+  // Builds a badge span for the tooltip using textContent (never innerHTML) since titles/sources
+  // come from live RSS feeds and must not be interpreted as markup.
+  const buildTooltipBadge = (text: string, color: string, background: string) => {
+    const badge = document.createElement('span');
+    badge.className = 'tooltip-badge';
+    badge.style.color = color;
+    badge.style.background = background;
+    badge.textContent = text;
+    return badge;
+  };
+
+  const showTooltip = (signal: Signal, anchorRect: DOMRect) => {
+    const tooltip = tooltipRef.current;
+    if (!tooltip) return;
+    tooltip.innerHTML = '';
+    tooltip.style.setProperty('--tooltip-color', CATEGORY_COLORS[signal.category] || '#4dabf7');
+    tooltip.style.left = `${anchorRect.left + anchorRect.width / 2}px`;
+    tooltip.style.top = `${anchorRect.top}px`;
+    tooltip.style.display = 'block';
+
+    const title = document.createElement('div');
+    title.className = 'tooltip-title';
+    title.textContent = signal.summary;
+    tooltip.appendChild(title);
+
+    const meta = document.createElement('div');
+    meta.className = 'tooltip-meta';
+    const categoryColor = CATEGORY_COLORS[signal.category] || '#4dabf7';
+    meta.appendChild(buildTooltipBadge(signal.category.toUpperCase(), categoryColor, `${categoryColor}18`));
+    meta.appendChild(buildTooltipBadge(`RISK ${signal.riskScore}`, '#ff4545', 'rgba(255, 69, 69, 0.12)'));
+    if (signal.source) {
+      meta.appendChild(buildTooltipBadge(signal.source, '#aaa', 'rgba(255,255,255,0.06)'));
+    }
+    tooltip.appendChild(meta);
+  };
+
+  const hideTooltip = () => {
+    if (tooltipRef.current) tooltipRef.current.style.display = 'none';
+  };
+
+  // Builds the pulsing dot marker shown on the globe for each signal (raw DOM node - required by
+  // react-globe.gl's htmlElement accessor). Hover is handled entirely via direct DOM mutation
+  // (showTooltip/hideTooltip) rather than React state - triggering a Dashboard re-render here would
+  // hand react-globe.gl a new pointsData/htmlElement identity, which rebuilds every marker (including
+  // the one under the cursor), re-firing mouseenter and looping forever.
+  const buildMarkerElement = (d: any) => {
+    const el = document.createElement('div');
+    el.className = 'globe-marker' + (d.isSelected ? ' selected' : '');
+    const size = d.isSelected ? 18 : 12;
+    el.style.width = `${size}px`;
+    el.style.height = `${size}px`;
+    el.style.setProperty('--marker-color', d.color);
+
+    const ring = document.createElement('div');
+    ring.className = 'marker-ring';
+    const dot = document.createElement('div');
+    dot.className = 'marker-dot';
+    el.appendChild(ring);
+    el.appendChild(dot);
+
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handlePointClick(d);
+    });
+    el.addEventListener('mouseenter', () => showTooltip(d.signalRef, el.getBoundingClientRect()));
+    el.addEventListener('mouseleave', hideTooltip);
+
+    return el;
   };
 
   return (
@@ -310,14 +385,12 @@ const Dashboard: React.FC = () => {
                   bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
                   backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
                   
-                  pointsData={pointsData}
-                  pointColor="color"
-                  pointAltitude={0.05}
-                  pointRadius={0.5}
-                  pointsMerge={false}
-                  onPointClick={handlePointClick}
-                  pointLabel="label"
-                  
+                  htmlElementsData={pointsData}
+                  htmlLat="lat"
+                  htmlLng="lng"
+                  htmlAltitude={0.015}
+                  htmlElement={buildMarkerElement}
+
                   arcsData={arcsData}
                   arcStartLat="startLat"
                   arcStartLng="startLng"
@@ -336,6 +409,9 @@ const Dashboard: React.FC = () => {
                   height={isMobile ? window.innerHeight : undefined}
                 />
               )}
+
+              {/* Populated imperatively by showTooltip/hideTooltip - see buildMarkerElement. */}
+              <div ref={tooltipRef} className="globe-tooltip" style={{ display: 'none' }} />
             </div>
 
             {/* Side Panel */}

@@ -59,6 +59,7 @@ export interface Signal {
   isNoise: boolean;
   imageUrl?: string;
   sourceUrl?: string;
+  source?: string;
   context: ContextLayer;
   xContent: XContent;
   intelligence: IntelligenceLayer;
@@ -246,6 +247,7 @@ const mapStoryToSignal = (story: any, analysis?: StoryAnalysis): Signal => {
     summary: story.title,
     riskScore: story.relevance || 5,
     sourceUrl: story.sourceUrl,
+    source: story.sourceTitle,
     whyItMatters: story.relevanceSummary || story.summary.substring(0, 150) + "...",
     whatToWatch: analysis?.whatToWatch || "Intelligence indicators suggest " + (story.relevanceReasons?.split('\n')[0]?.replace(/^- \*\*/, '').replace(/\*\*:.*$/, '') || "monitoring required."),
     isNoise: false,
