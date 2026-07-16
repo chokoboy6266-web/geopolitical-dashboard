@@ -200,11 +200,24 @@ const mapStoryToSignal = (story: any, analysis?: StoryAnalysis): Signal => {
   let coords = { lat: 0, lng: 0 };
   let region = story.issue?.name || "Global";
 
+  // Check the title first - the analyst commentary in `summary` always frames things through
+  // an India lens, so matching against it here would resolve almost every story to India
+  // regardless of what the story is actually about.
   for (const [country, pos] of Object.entries(countryCoordinates)) {
-    if (story.title.includes(country) || story.summary.includes(country)) {
+    if (story.title.includes(country)) {
       coords = pos;
       region = country;
       break;
+    }
+  }
+
+  if (coords.lat === 0) {
+    for (const [country, pos] of Object.entries(countryCoordinates)) {
+      if (story.summary.includes(country)) {
+        coords = pos;
+        region = country;
+        break;
+      }
     }
   }
 
