@@ -24,10 +24,10 @@ const ALLOWED_SOURCE_NAMES = [
 const SITE_FILTER = ALLOWED_SOURCE_SITES.map(site => `site:${site}`).join(' OR ');
 
 export const RSS_TOPICS = [
-  `geopolitics india conflict (${SITE_FILTER})`,
-  `india defense strategic security (${SITE_FILTER})`,
-  `china pakistan border india (${SITE_FILTER})`,
-  `global trade energy security india (${SITE_FILTER})`
+  `global military conflict security (${SITE_FILTER})`,
+  `global energy oil gas security (${SITE_FILTER})`,
+  `technology semiconductor cyber security AI (${SITE_FILTER})`,
+  `diplomacy geopolitics international relations summit (${SITE_FILTER})`
 ];
 
 function isAllowedSource(sourceName: string): boolean {
@@ -36,7 +36,8 @@ function isAllowedSource(sourceName: string): boolean {
 }
 
 const HUB_PAGE_PATTERNS = [
-  /latest (top )?(stories|news)/i,
+  /\bnews\s*\|/i,
+  /latest.*(stories|news)/i,
   /news (&|and) updates/i,
   /^(world|india|china|business|sport|technology) news\b/i
 ];
