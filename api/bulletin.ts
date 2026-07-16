@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { postToBluesky, postToThreads } from './_lib/social.js';
-import { fetchNewsItems } from './_lib/news.js';
+import { fetchNewsItems, selectDiverseNews } from './_lib/news.js';
 import { getJsonFile, updateJsonFile } from './_lib/github-store.js';
 import { getHashtags } from './_lib/hashtags.js';
 
@@ -27,8 +27,12 @@ export default async function handler(req: any, res: any) {
       ...articles.map((a: any) => a.title),
       ...headlineHistory.map((h: any) => h.title)
     ]);
+    const recentSources = [
+      ...headlineHistory.slice(0, 12).map((h: any) => h.source).filter(Boolean),
+      ...articles.slice(0, 12).map((a: any) => a.source).filter(Boolean)
+    ];
 
-    const selected = newsItems.filter(item => !postedTitles.has(item.title)).slice(0, MAX_PER_RUN);
+    const selected = selectDiverseNews(newsItems, postedTitles, recentSources, MAX_PER_RUN);
     if (selected.length === 0) {
       return res.status(200).json({ status: 'skipped', reason: 'No fresh headlines' });
     }
@@ -49,7 +53,7 @@ export default async function handler(req: any, res: any) {
 
     const posted = selected.filter((_, i) => results[i].status === 'fulfilled');
     const updatedHistory = [
-      ...posted.map(item => ({ title: item.title, date: new Date().toISOString() })),
+      ...posted.map(item => ({ title: item.title, source: item.source, date: new Date().toISOString() })),
       ...headlineHistory
     ].slice(0, MAX_HISTORY);
     await updateJsonFile(HEADLINES_FILE, updatedHistory, 'Update posted headlines log [skip ci]');

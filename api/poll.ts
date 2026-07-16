@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { postToBluesky, postToThreads } from './_lib/social.js';
-import { fetchNewsItems } from './_lib/news.js';
+import { fetchNewsItems, selectDiverseNews } from './_lib/news.js';
 import { getJsonFile, updateJsonFile } from './_lib/github-store.js';
 import { getHashtags } from './_lib/hashtags.js';
 
@@ -102,7 +102,8 @@ export default async function handler(req: any, res: any) {
     // Persistent Deduplication - skip anything already posted in recent history, not just the last one
     const currentArticles = await getJsonFile(ARTICLES_FILE);
     const postedTitles = new Set(currentArticles.map((a: any) => a.title));
-    const selectedNews = newsItems.find(item => !postedTitles.has(item.title)) || (req.query.force ? newsItems[0] : null);
+    const recentSources = currentArticles.slice(0, 12).map((a: any) => a.source).filter(Boolean);
+    const selectedNews = selectDiverseNews(newsItems, postedTitles, recentSources, 1)[0] || (req.query.force ? newsItems[0] : null);
 
     if (!selectedNews) {
       return res.status(200).json({ status: 'skipped', reason: 'Already posted latest news' });
