@@ -98,7 +98,8 @@ export default async function handler(req: any, res: any) {
 
     const digestLink = 'https://t.me/IndiaWorldIntel';
     const hashtags = getHashtags(newsItems.slice(0, 3).map(i => i.title).join(' '));
-    const socialPitch = `📢 ${type} Geopolitical Intelligence Digest is live — top developments in India & global strategy.\n\nFull briefing: ${digestLink}\n\n${hashtags}`;
+    const topHeadline = newsItems[0]?.title;
+    const socialPitch = `📢 ${type} Digest: ${topHeadline}, plus today's other top strategic developments.\n\nFull briefing: ${digestLink}\n\n${hashtags}`;
     await Promise.allSettled([
       postToBluesky(socialPitch, {
         url: digestLink,

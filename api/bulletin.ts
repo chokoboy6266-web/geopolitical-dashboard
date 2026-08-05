@@ -4,14 +4,43 @@ import { fetchNewsItems, selectDiverseNews } from './_lib/news.js';
 import { getJsonFile, updateJsonFile } from './_lib/github-store.js';
 import { getHashtags } from './_lib/hashtags.js';
 
+const GROQ_API_KEY = process.env.GROK_API_KEY; // Groq (fast inference), not xAI's Grok
 const ARTICLES_FILE = 'api/articles.json';
 const HEADLINES_FILE = 'api/posted-headlines.json';
-const MAX_PER_RUN = 2;
+const MAX_PER_RUN = 1;
 const MAX_HISTORY = 300;
 
 function getRepresentationalImage(title: string): string {
   const prompt = encodeURIComponent(`${title}, geopolitics news illustration, professional editorial style`);
   return `https://image.pollinations.ai/prompt/${prompt}?width=1200&height=630&nologo=true`;
+}
+
+// A short, punchy analytical take (not a headline restatement) so Bluesky/Threads
+// posts read like editorial voice instead of a generic RSS-to-social bot.
+async function getSocialHook(title: string, source: string): Promise<string> {
+  if (!GROQ_API_KEY) return `📰 ${title}`;
+  const prompt = `
+    You are Shivam Punjabi, a realist geopolitical analyst with an India-first strategic lens.
+    Write ONE punchy, insightful sentence (max 30 words) reacting to this news for a social media post.
+    It must read like sharp analysis, not a restated headline. Plain text only, no quotes, no hashtags, no emoji.
+    News: ${title} (${source})
+  `.trim();
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    const hook = data.choices?.[0]?.message?.content?.trim();
+    return hook ? `🧭 ${hook}` : `📰 ${title}`;
+  } catch (e) {
+    console.error('Bulletin hook Groq Error:', e);
+    return `📰 ${title}`;
+  }
 }
 
 export default async function handler(req: any, res: any) {
@@ -38,7 +67,8 @@ export default async function handler(req: any, res: any) {
     }
 
     const results = await Promise.allSettled(selected.map(async item => {
-      const text = `📰 ${item.title}\n\n${item.link}\n\n${getHashtags(item.title)}`;
+      const hook = await getSocialHook(item.title, item.source);
+      const text = `${hook}\n\n${item.link}\n\n${getHashtags(item.title)}`;
       const imageUrl = getRepresentationalImage(item.title);
       await Promise.allSettled([
         postToBluesky(text, {

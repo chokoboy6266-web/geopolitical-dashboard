@@ -1,8 +1,6 @@
 // @ts-nocheck
-import { postToBluesky, postToThreads } from './_lib/social.js';
 import { fetchNewsItems, selectDiverseNews } from './_lib/news.js';
 import { getJsonFile, updateJsonFile } from './_lib/github-store.js';
-import { getHashtags } from './_lib/hashtags.js';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GROQ_API_KEY = process.env.GROK_API_KEY; // Groq (fast inference), not xAI's Grok
@@ -71,21 +69,6 @@ Continuous monitoring is necessary.
     console.error("Groq Error:", e);
     return { telegramAnalysis: fallbackTelegram, fullArticle: fallbackArticle };
   }
-}
-
-async function shortenUrl(longUrl: string): Promise<string> {
-  try {
-    const res = await fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(longUrl));
-    const text = (await res.text()).trim();
-    return res.ok && text.startsWith('http') ? text : longUrl;
-  } catch (e) {
-    return longUrl;
-  }
-}
-
-function getRepresentationalImage(title: string): string {
-  const prompt = encodeURIComponent(`${title}, geopolitics news illustration, professional editorial style`);
-  return `https://image.pollinations.ai/prompt/${prompt}?width=1200&height=630&nologo=true`;
 }
 
 function escapeHTML(str: string) {
@@ -182,22 +165,6 @@ ${analysis}
         }
       }),
     });
-
-    const articleImage = getRepresentationalImage(selectedNews.title);
-    const shortArticleLink = await shortenUrl(selectedNews.link);
-
-    const hashtags = getHashtags(selectedNews.title);
-    const twoLinkPitch = `🚨 ${selectedNews.title}\n\n📰 Article: ${shortArticleLink}\n🌐 Dashboard: ${webArticleLink}\n\n${hashtags}`;
-    const socialPitch = twoLinkPitch.length <= 300 ? twoLinkPitch : `🚨 ${selectedNews.title}\n\n${webArticleLink}\n\n${hashtags}`;
-    await Promise.allSettled([
-      postToBluesky(socialPitch, {
-        url: webArticleLink,
-        title: selectedNews.title,
-        description: `Strategic analysis via India World Intel — ${source}`,
-        imageUrl: articleImage
-      }),
-      postToThreads(socialPitch)
-    ]);
 
     return res.status(200).json({ status: 'success', news: selectedNews.title, articleId });
 
