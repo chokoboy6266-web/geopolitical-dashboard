@@ -30,7 +30,7 @@ async function getSocialHook(title: string, source: string): Promise<string> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_API_KEY}` },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         messages: [{ role: 'user', content: prompt }]
       })
     });
@@ -68,16 +68,20 @@ export default async function handler(req: any, res: any) {
 
     const results = await Promise.allSettled(selected.map(async item => {
       const hook = await getSocialHook(item.title, item.source);
-      const text = `${hook}\n\n${item.link}\n\n${getHashtags(item.title)}`;
+      const hashtags = getHashtags(item.title);
       const imageUrl = getRepresentationalImage(item.title);
       await Promise.allSettled([
-        postToBluesky(text, {
+        // No raw link in the Bluesky text: the embed card below already carries
+        // a working link, and article URLs (Google News redirects) can run 700+
+        // chars — far past the 300-char post limit, which was truncating mid-URL
+        // and eating the hashtags after it.
+        postToBluesky(`${hook}\n\n${hashtags}`, {
           url: item.link,
           title: item.title,
           description: `Latest via India World Intel — ${item.source}`,
           imageUrl
         }),
-        postToThreads(text)
+        postToThreads(`${hook}\n\n${item.link}\n\n${hashtags}`)
       ]);
     }));
 
